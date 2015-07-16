@@ -473,6 +473,7 @@ dataTest.createWorker("set_input",                        // worker ID
 - [_cmd_createArray](README.md#commad_trait__cmd_createArray)
 - [_cmd_createObject](README.md#commad_trait__cmd_createObject)
 - [_cmd_moveToIndex](README.md#commad_trait__cmd_moveToIndex)
+- [_cmd_position](README.md#commad_trait__cmd_position)
 - [_cmd_pushToArray](README.md#commad_trait__cmd_pushToArray)
 - [_cmd_removeObject](README.md#commad_trait__cmd_removeObject)
 - [_cmd_setMeta](README.md#commad_trait__cmd_setMeta)
@@ -484,6 +485,7 @@ dataTest.createWorker("set_input",                        // worker ID
 - [_reverse_aceCmd](README.md#commad_trait__reverse_aceCmd)
 - [_reverse_createObject](README.md#commad_trait__reverse_createObject)
 - [_reverse_moveToIndex](README.md#commad_trait__reverse_moveToIndex)
+- [_reverse_position](README.md#commad_trait__reverse_position)
 - [_reverse_pushToArray](README.md#commad_trait__reverse_pushToArray)
 - [_reverse_removeObject](README.md#commad_trait__reverse_removeObject)
 - [_reverse_setMeta](README.md#commad_trait__reverse_setMeta)
@@ -1195,32 +1197,19 @@ return this._objectHash[id];
 ```javascript
 
 if(!data) return null;
-
 if(!this.isObject(data)) return data;
 
-data = this._wrapData( data );
+if(data.__objects) {
+    var me = this;
+    var setFn = function(o) {
+        me._objectHash[o.__id] = o;
+    }
+    data.__objects.forEach(setFn);
+}
 if(data.__id) {
     this._objectHash[data.__id] = data;
 }
 
-var me = this;
-if(parentId) {
-    data.__p = parentId;
-}
-if(data.data) {
-    var sub = data.data;
-    for(var n in sub) {
-        if(sub.hasOwnProperty(n)) {
-            var p = sub[n];
-            if(this.isObject(p)) {
-                var newData = this._findObjects(p, data.__id);
-                if(newData !== p ) {
-                    data.data[n] = newData;
-                }
-            }
-        }
-    }
-}
 return data;
 ```
 
@@ -1370,6 +1359,10 @@ The format of the main data is as follows :
 */
 if(!this._objectHash) {
     this._objectHash = {};
+}
+
+if(!mainData.__objects) {
+    mainData.__objects = [];
 }
 
 var me = this;
@@ -1549,8 +1542,22 @@ if(!objId) return false;
 var hash = this._getObjectHash();
 if(hash[objId]) return false;
 
-var newObj = { data : [], __id : objId };
+// can any object be array or object?
+
+// This is the data right
+// plain array object
+var newObj = {
+    data : {},
+//    _n  : null,
+//    _p  : null,
+//    _fc : null,
+    __id : objId,
+    __p  : null
+};
+
 hash[newObj.__id] = newObj;
+
+this._data.__objects.push( newObj );
 
 if(!(isRemote)) {
     this.writeCommand(a, newObj);
@@ -1568,8 +1575,19 @@ if(!objId) return false;
 var hash = this._getObjectHash();
 if(hash[objId]) return false;
 
-var newObj = { data : {}, __id : objId };
+// plain array object
+var newObj = {
+    data : {},
+//    _n  : null,
+//    _p  : null,
+//    _fc : null,
+    __id : objId,
+    __p  : null
+};
+
 hash[newObj.__id] = newObj;
+
+this._data.__objects.push( newObj );
 
 if(!(isRemote)) {
     this.writeCommand(a, newObj);
@@ -1633,10 +1651,124 @@ return true;
 
 ```
 
+### <a name="commad_trait__cmd_position"></a>commad_trait::_cmd_position(a, isRemote, noWorkers)
+
+
+```javascript
+/*
+The command structure is here now a bit different me thinks
+
+// if there is a position change, it is just a value change.
+[ [7, [next, prev]] ]
+
+// the command structure might be
+[ 21, [newP, newN, newParent], [oldP, oldN, oldParent], 0, id ]  
+obj.set();
+
+// do we create something like command "next" - as a worker command
+[ 26, newNext, oldNext, 0, id ]  
+
+*/
+
+var from = a[2],
+    to   = a[1],
+    obj  = this._find(a[4]);
+
+var oldParent   = this._find( from[2] ),
+    newParent   = this._find( to[2] );
+
+// check that current position is valid so that the command can be reversed propery
+if((obj._p || from[0])  && ( from[0] != obj._p )) return false;
+if((obj._n || from[1])  && ( from[1] != obj._n )) return false;
+if((obj.__p || from[2]) && ( from[2] != obj.__p )) return false;
+
+var newPrev = this._find( to[0] );      // the new previous obj
+var newNext = this._find( to[1] );      // the next next obj
+var newParent = this._find( to[2] );      // the next next obj
+
+if(newPrev) {
+    // the position is incorrect
+    if(newNext && (newNext._p != newPrev.__id)) return false;
+    // the don't have the same parent
+    if(newNext && (newNext.__p != newPrev.__p)) return false;
+    // if newNext object does not exist then the prev should not have next pointer
+    if(!newNext && (newPrev._n)) return false; 
+} else {
+    // the next should not have previous currently
+    if(newNext && (newNext._p)) return false;
+    // the object should be under the same parent
+    if(newNext && (newNext.__p != newParent.__id)) return false;
+    
+    if(!newNext) {
+        if(newParent && newParent._fc) return false; // the object should not have first child
+    }
+}
+
+// the other objects must be also updated, if you remove the object or do any other
+// changes to the next / previous values
+if(obj._p) {
+    var oldPrev = this._find( obj._p );  // there will be a change for this object too
+    var oldNext = this._find( obj._n );      // the next for the previous
+    if(oldNext) {
+        oldPrev._n = oldNext.__id;
+        oldNext._p = oldPrev.__id;
+    } else {
+        oldPrev._n = null;               // the oldPrev
+    }
+} else {
+    // if no previous, the object is the first child of the array 
+    var parent = this._find( obj.__p); 
+    var oldNext = this._find( obj._n );      // the next for the previous
+    
+    if(parent && oldNext) parent._fc = oldNext.__id;
+    if(parent && !oldNext) parent._fc = null;
+    if(oldNext) oldNext._p = null;
+}
+
+// moving the object is as simple as this
+obj._p  = to[0];
+obj._n  = to[1];
+obj.__p = to[2];
+
+// then update the objects around this object
+if(newPrev) {
+    var oldNext = this._find( newPrev._n );      // there will be a change for this object too
+    if(oldNext) {
+        newPrev._n = obj.__id;
+        oldNext._p = obj.__id;
+    } else {
+        newPrev._n = obj.__id;  
+    }
+} else {
+    // if there is not previous, we are also the new firstchild of the parent
+    var parent = this._find( obj.__p); 
+    if(parent) parent._fc = obj.__id;
+    if(newNext) {
+        newNext._p = obj.__id;
+    } 
+}
+
+if(!noWorkers) this._cmd(a);
+if(!isRemote)  this.writeCommand(a);
+
+
+return true;
+```
+
 ### <a name="commad_trait__cmd_pushToArray"></a>commad_trait::_cmd_pushToArray(a, isRemote)
 
 
 ```javascript
+/*
+The command structure is here now a bit different me thinks
+
+// if there is a position change, it is just a value change.
+[ [7, [next, prev]] ]
+
+// the command 
+[ 22, [newP, newN, newParent], [oldP, oldN, oldParent] ]  
+
+*/
 
 var parentObj = this._find( a[4] ),
     insertedObj = this._find( a[2] ),
@@ -1740,7 +1872,7 @@ if(obj) {
 }
 ```
 
-### <a name="commad_trait__cmd_setProperty"></a>commad_trait::_cmd_setProperty(a, isRemote)
+### <a name="commad_trait__cmd_setProperty"></a>commad_trait::_cmd_setProperty(a, isRemote, noWorkers)
 
 
 ```javascript
@@ -1760,13 +1892,13 @@ if(typeof( oldValue ) != "undefined") {
 }
 
 obj.data[prop] = a[2]; // value is now set...
-this._cmd(a, obj, null);
+
+if(!noWorkers) this._cmd(a);
 
 // Saving the write to root document
 if(!isRemote) {
     this.writeCommand(a);
 } 
-this._fireListener(obj, prop);
 
 return true;
 
@@ -1912,6 +2044,19 @@ if(targetObj) {
     this._cmd(tmpCmd);
 
 }
+```
+
+### <a name="commad_trait__reverse_position"></a>commad_trait::_reverse_position(a)
+
+
+```javascript
+
+var newCmd = [22, a[2], a[1],0, a[4]];
+
+
+
+return this._cmd_position(newCmd, true, true);
+
 ```
 
 ### <a name="commad_trait__reverse_pushToArray"></a>commad_trait::_reverse_pushToArray(a)
@@ -2095,6 +2240,7 @@ if(!_cmds) {
     _cmds[10] = this._cmd_unsetProperty;
     _cmds[12] = this._cmd_moveToIndex;
     _cmds[13] = this._cmd_aceCmd;
+    _cmds[21] = this._cmd_position;
     
     _reverseCmds[3] = this._reverse_setMeta;
     _reverseCmds[4] = this._reverse_setProperty;
@@ -2104,6 +2250,7 @@ if(!_cmds) {
     _reverseCmds[10] = this._reverse_unsetProperty;
     _reverseCmds[12] = this._reverse_moveToIndex;
     _reverseCmds[13] = this._reverse_aceCmd;
+    _reverseCmds[21] = this._reverse_position;
     // _reverse_setPropertyObject
     
 }
