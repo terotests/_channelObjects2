@@ -999,9 +999,7 @@
          * @param float a
          */
         _myTrait_._reverse_position = function (a) {
-
           var newCmd = [22, a[2], a[1], 0, a[4]];
-
           return this._cmd_position(newCmd, true, true);
         };
 
