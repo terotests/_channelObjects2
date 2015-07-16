@@ -616,14 +616,8 @@
          */
         _myTrait_._cmd_position = function (a, isRemote, noWorkers) {
           /*
-          The command structure is here now a bit different me thinks
-          // if there is a position change, it is just a value change.
-          [ [7, [next, prev]] ]
-          // the command structure might be
+          // the command structure 
           [ 21, [newP, newN, newParent], [oldP, oldN, oldParent], 0, id ]  
-          obj.set();
-          // do we create something like command "next" - as a worker command
-          [ 26, newNext, oldNext, 0, id ]  
           */
 
           var from = a[2],
