@@ -638,6 +638,12 @@
           if ((obj._n || from[1]) && from[1] != obj._n) return false;
           if ((obj.__p || from[2]) && from[2] != obj.__p) return false;
 
+          if (newParent && newParent.__id == obj.__id) return false;
+
+          // already there...
+          if ((obj._p || to[0]) && to[0] == obj._p) return false;
+          if ((obj._n || to[1]) && to[1] == obj._n) return false;
+
           var newPrev = this._find(to[0]); // the new previous obj
           var newNext = this._find(to[1]); // the next next obj
           var newParent = this._find(to[2]); // the next next obj
