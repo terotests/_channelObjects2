@@ -4,6 +4,16 @@ The first run-down of the command runner. When sending arbitary object data over
 
 The main file and journal are ment to be used together with (Channels)[https://github.com/terotests/_channels] which make possible forking the data into separate branches.
 
+# TODO
+
+The ID values might be formed using object to speed up comparisions? Think about this.
+
+```javascript
+      genId: function() {
+        return { site: this.site, clock: this.tick() };
+      },
+```
+
 # Limitations
 
 1. moving objects from one subtree to other is not allowed. The object must be removed first and then inserted to other subtree. This is to make client side view MVC code easier to implement.
