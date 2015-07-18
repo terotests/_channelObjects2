@@ -447,6 +447,7 @@ dataTest.createWorker("set_input",                        // worker ID
 - [_wrapData](README.md#_channelData__wrapData)
 - [createWorker](README.md#_channelData_createWorker)
 - [getData](README.md#_channelData_getData)
+- [getJournal](README.md#_channelData_getJournal)
 - [indexOf](README.md#_channelData_indexOf)
 - [setWorkerCommands](README.md#_channelData_setWorkerCommands)
 - [toPlainData](README.md#_channelData_toPlainData)
@@ -458,10 +459,15 @@ dataTest.createWorker("set_input",                        // worker ID
     
 ##### trait _dataTrait
 
+- [_posChange](README.md#_dataTrait__posChange)
 - [guid](README.md#_dataTrait_guid)
 - [isArray](README.md#_dataTrait_isArray)
 - [isFunction](README.md#_dataTrait_isFunction)
 - [isObject](README.md#_dataTrait_isObject)
+- [moveDown](README.md#_dataTrait_moveDown)
+- [moveUp](README.md#_dataTrait_moveUp)
+- [push](README.md#_dataTrait_push)
+- [remove](README.md#_dataTrait_remove)
 
 
     
@@ -474,28 +480,38 @@ dataTest.createWorker("set_input",                        // worker ID
 - [_cmd_createObject](README.md#commad_trait__cmd_createObject)
 - [_cmd_moveToIndex](README.md#commad_trait__cmd_moveToIndex)
 - [_cmd_position](README.md#commad_trait__cmd_position)
+- [_cmd_position2](README.md#commad_trait__cmd_position2)
 - [_cmd_pushToArray](README.md#commad_trait__cmd_pushToArray)
 - [_cmd_removeObject](README.md#commad_trait__cmd_removeObject)
 - [_cmd_setMeta](README.md#commad_trait__cmd_setMeta)
 - [_cmd_setProperty](README.md#commad_trait__cmd_setProperty)
 - [_cmd_setPropertyObject](README.md#commad_trait__cmd_setPropertyObject)
 - [_cmd_unsetProperty](README.md#commad_trait__cmd_unsetProperty)
+- [_deltaPatch](README.md#commad_trait__deltaPatch)
+- [_deltaPatchMeta](README.md#commad_trait__deltaPatchMeta)
 - [_fireListener](README.md#commad_trait__fireListener)
 - [_moveCmdListToParent](README.md#commad_trait__moveCmdListToParent)
 - [_reverse_aceCmd](README.md#commad_trait__reverse_aceCmd)
 - [_reverse_createObject](README.md#commad_trait__reverse_createObject)
 - [_reverse_moveToIndex](README.md#commad_trait__reverse_moveToIndex)
 - [_reverse_position](README.md#commad_trait__reverse_position)
+- [_reverse_position2](README.md#commad_trait__reverse_position2)
 - [_reverse_pushToArray](README.md#commad_trait__reverse_pushToArray)
 - [_reverse_removeObject](README.md#commad_trait__reverse_removeObject)
 - [_reverse_setMeta](README.md#commad_trait__reverse_setMeta)
 - [_reverse_setProperty](README.md#commad_trait__reverse_setProperty)
 - [_reverse_setPropertyObject](README.md#commad_trait__reverse_setPropertyObject)
 - [_reverse_unsetProperty](README.md#commad_trait__reverse_unsetProperty)
+- [_setDelta](README.md#commad_trait__setDelta)
+- [apply](README.md#commad_trait_apply)
+- [collectToDiff](README.md#commad_trait_collectToDiff)
+- [conditionalRunner](README.md#commad_trait_conditionalRunner)
+- [deltaDiffToCmds](README.md#commad_trait_deltaDiffToCmds)
 - [execCmd](README.md#commad_trait_execCmd)
 - [getJournalLine](README.md#commad_trait_getJournalLine)
 - [getLocalJournal](README.md#commad_trait_getLocalJournal)
 - [redo](README.md#commad_trait_redo)
+- [registerClass](README.md#commad_trait_registerClass)
 - [reverseCmd](README.md#commad_trait_reverseCmd)
 - [reverseNLines](README.md#commad_trait_reverseNLines)
 - [reverseToLine](README.md#commad_trait_reverseToLine)
@@ -1317,6 +1333,13 @@ workers[propFilter].push( [workerID, workerOptions ] );
 return this._data;
 ```
 
+### <a name="_channelData_getJournal"></a>_channelData::getJournal(t)
+
+
+```javascript
+return this._journal;
+```
+
 ### <a name="_channelData_indexOf"></a>_channelData::indexOf(item)
 
 
@@ -1453,6 +1476,76 @@ this._cmdBuffer.push(a);
 The class has following internal singleton variables:
         
         
+### <a name="_dataTrait__posChange"></a>_dataTrait::_posChange(objId, prevId, parentId, nextId)
+
+
+```javascript
+
+var obj = this._find( objId );
+if(!obj) return;
+
+var newPrev = this._find( prevId );
+var newNext = this._find( nextId );
+var newParent = this._find( parentId );
+
+var from = [],
+    to = [];
+
+// the object becomes the new first child of it's parent
+if(newParent && !newPrev && ( newParent._fc != obj.__id) ) {
+    from.push([newParent.__id, 3, newParent._fc]);
+    to.push(  [newParent.__id, 3, obj.__id]);         
+}
+
+// if parent changes, check that the object is not the current first child
+if(obj.__p && ( obj.__p != parentId) ) {
+    var oldParent = this._find( obj.__p );
+    if(oldParent._fc == objId) {
+        from.push([obj.__p, 3, objId]);
+        to.push(  [obj.__p, 3, obj._n]);           
+    }
+}
+
+// if object has previous and it changes, then the next of this becomes next of prev
+if(obj._p && (prevId != obj._p)) {
+    from.push([obj._p, 2, objId]);
+    to.push(  [obj._p, 2, obj._n]);         
+}
+if(newPrev && (newPrev._n != obj.__id)) {
+    from.push([prevId, 2, newPrev._n]);
+    to.push(  [prevId, 2, objId]);        
+}
+
+if(newNext && (newNext._p != obj.__id)) {
+    from.push([nextId, 0, newNext._p]);
+    to.push(  [nextId, 0, objId]);        
+}
+
+// if the object's next changes, then prev of object becomes prev of current next
+if(obj._n && (nextId != obj._n)) {
+    from.push([obj._n, 0, objId]);
+    to.push(  [obj._n, 0, obj._p]);         
+}
+
+if(obj._n != nextId) {
+    from.push([objId, 2, obj._n]);
+    to.push(  [objId, 2, nextId]);      
+}
+
+if(obj._p != prevId) {
+    from.push([objId, 0, obj._p]);
+    to.push(  [objId, 0, prevId]);      
+}
+
+if(obj.__p != parentId) {
+    from.push([objId, 1, obj.__p]);
+    to.push(  [objId, 1, parentId]);      
+}
+
+return [22, to, from, 0, objId];
+
+```
+
 ### <a name="_dataTrait_guid"></a>_dataTrait::guid(t)
 
 
@@ -1483,6 +1576,104 @@ return Object.prototype.toString.call(fn) == '[object Function]';
 return t === Object(t);
 ```
 
+### <a name="_dataTrait_moveDown"></a>_dataTrait::moveDown(objId)
+
+
+```javascript
+
+var obj = this._find( objId );
+if(!obj) return;
+
+var prevObj = this._find( obj._p );
+
+if(!prevObj) return;
+
+var undefined_val;
+var cmd = this._posChange(objId, prevObj._p, obj.__p, prevObj.__id);
+this.execCmd( cmd );
+
+```
+
+### <a name="_dataTrait_moveUp"></a>_dataTrait::moveUp(objId)
+
+
+```javascript
+
+var obj = this._find( objId );
+if(!obj) return;
+
+var nextObj = this._find( obj._n );
+
+if(!nextObj) return;
+
+var undefined_val;
+var cmd = this._posChange(objId, nextObj.__id, obj.__p, nextObj._n);
+this.execCmd( cmd );
+
+```
+
+### <a name="_dataTrait_push"></a>_dataTrait::push(objId, insertObjId)
+
+
+```javascript
+/*
+// the command structure 
+[ 22,
+
+    [
+        ["myId",   1, "newParent"],
+        ["myId",   0, "prevId"],
+        ["prevId", 2, "myId"],
+        ["myId",   2, "nextId"],
+        ["nextId", 0, "myId"],        
+        ["parentId, 3, "myId"] 
+    ], 
+    [
+        ["myId", 1],
+        ["myId",   0],
+        ["prevId", 2, "nextId"],    
+        ["myId",   2],
+        ["nextId", 0, "prevId"],    
+        ["parentId, 3, "oldFirstChild"] 
+    ], 
+    0, 
+id ]  
+*/
+var obj = this._find( objId );
+var insObj = this._find( insertObjId );
+if(!obj || !insObj) return;
+var  undefined_val;
+if(obj._fc) {
+    var after_id = obj._fc;
+    var after = this._find( after_id );
+    while(after._n) after = this._find( after._n );
+    
+    var cmd = this._posChange(insertObjId, after.__id, objId, undefined_val);
+    this.execCmd( cmd );
+    
+} else {
+
+    var cmd = this._posChange(insertObjId, undefined_val, objId, undefined_val);
+    console.log(cmd);
+    this.execCmd( cmd );
+    
+}
+
+```
+
+### <a name="_dataTrait_remove"></a>_dataTrait::remove(objId)
+
+
+```javascript
+
+var obj = this._find( objId );
+if(!obj) return;
+var undefined_val;
+var cmd = this._posChange(objId, undefined_val, undefined_val, undefined_val);
+this.execCmd( cmd );
+
+```
+
 
     
     
@@ -1500,6 +1691,10 @@ The class has following internal singleton variables:
 * _cmds
         
 * _reverseCmds
+        
+* _classes
+        
+* _deltaPatchMeta
         
         
 ### <a name="commad_trait__cmd_aceCmd"></a>commad_trait::_cmd_aceCmd(a, isRemote)
@@ -1585,6 +1780,8 @@ var newObj = {
     __p  : null
 };
 
+if(a[2]) newObj._class = a[2];
+
 hash[newObj.__id] = newObj;
 
 this._data.__objects.push( newObj );
@@ -1651,7 +1848,7 @@ return true;
 
 ```
 
-### <a name="commad_trait__cmd_position"></a>commad_trait::_cmd_position(a, isRemote, noWorkers)
+### <a name="commad_trait__cmd_position"></a>commad_trait::_cmd_position(a, isRemote, noWorkers, deltaObj)
 
 
 ```javascript
@@ -1660,6 +1857,9 @@ return true;
 [ 21, [newP, newN, newParent], [oldP, oldN, oldParent], 0, id ]  
 */
 
+if(!deltaObj) deltaObj = this._delta;
+
+var obj_id = a[4];
 var from = a[2],
     to   = a[1],
     obj  = this._find(a[4]);
@@ -1708,17 +1908,40 @@ if(obj._p) {
     if(oldNext) {
         oldPrev._n = oldNext.__id;
         oldNext._p = oldPrev.__id;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, oldPrev.__id, "_n", oldNext.__id );
+            this._deltaPatchMeta( deltaObj, oldNext.__id, "_p", oldPrev.__id );
+        }        
     } else {
         oldPrev._n = null;               // the oldPrev
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, oldPrev.__id, "_n", null );
+        }  
     }
+
 } else {
     // if no previous, the object is the first child of the array 
     var parent = this._find( obj.__p); 
     var oldNext = this._find( obj._n );      // the next for the previous
     
-    if(parent && oldNext) parent._fc = oldNext.__id;
-    if(parent && !oldNext) parent._fc = null;
-    if(oldNext) oldNext._p = null;
+    if(parent && oldNext) {
+        parent._fc = oldNext.__id;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, parent.__id, "_fc", oldNext.__id );
+        }          
+    }
+    if(parent && !oldNext) {
+        parent._fc = null;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, parent.__id, "_fc", null );
+        }          
+    }
+    if(oldNext) {
+        oldNext._p = null;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, oldNext.__id, "_p", null );
+        }         
+    }
 }
 
 // moving the object is as simple as this
@@ -1726,21 +1949,44 @@ obj._p  = to[0];
 obj._n  = to[1];
 obj.__p = to[2];
 
+if(deltaObj) {
+    if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };
+    var dd = deltaObj[obj_id];
+    dd._p = obj._p;
+    dd._n = obj._n;
+    dd.__p = obj.__p;
+}
+
 // then update the objects around this object
 if(newPrev) {
     var oldNext = this._find( newPrev._n );      // there will be a change for this object too
     if(oldNext) {
         newPrev._n = obj.__id;
         oldNext._p = obj.__id;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, newNext.__id, "_n", obj.__id );
+            this._deltaPatchMeta( deltaObj, oldNext.__id, "_p", obj.__id );
+        }         
     } else {
         newPrev._n = obj.__id;  
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, newPrev.__id, "_n", obj.__id );
+        }         
     }
 } else {
     // if there is not previous, we are also the new firstchild of the parent
     var parent = this._find( obj.__p); 
-    if(parent) parent._fc = obj.__id;
+    if(parent) {
+        parent._fc = obj.__id;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, parent.__id, "_fc", obj.__id );
+        }         
+    }
     if(newNext) {
         newNext._p = obj.__id;
+        if(deltaObj) {
+            this._deltaPatchMeta( deltaObj, newNext.__id, "_p", obj.__id );
+        }          
     } 
 }
 
@@ -1748,6 +1994,82 @@ if(!noWorkers) this._cmd(a);
 if(!isRemote)  this.writeCommand(a);
 
 
+return true;
+```
+
+### <a name="commad_trait__cmd_position2"></a>commad_trait::_cmd_position2(a, isRemote, noWorkers)
+
+
+```javascript
+/*
+// the command structure 
+[ 22,
+
+    [
+        ["myId",   1, "newParent"],
+        ["myId",   0, "prevId"],
+        ["prevId", 2, "myId"],
+        ["myId",   2, "nextId"],
+        ["nextId", 0, "myId"],        
+        ["parentId, 3, "myId"] 
+    ], 
+    [
+        ["myId", 1],
+        ["myId",   0],
+        ["prevId", 2, "nextId"],    
+        ["myId",   2],
+        ["nextId", 0, "prevId"],    
+        ["parentId, 3, "oldFirstChild"] 
+    ], 
+    0, 
+id ]  
+*/
+
+var obj_id = a[4];
+var from = a[2],
+    to   = a[1],
+    obj  = this._find(a[4]);
+    
+var len = from.length;
+
+// first, check that all values are correct
+for(var i=0; i<len;i++) {
+    var f = from[i];
+    var t = to[i];
+    var obj = this._find(f[0]);
+    if(f[1]==0) {
+        if(obj._p != f[2]) return false;
+    }
+    if(f[1]==1) {
+        if(obj.__p != f[2]) return false;
+    }   
+    if(f[1]==2) {
+        if(obj._n != f[2]) return false;
+    }      
+    if(f[1]==3) {
+        if(obj._fc != f[2]) return false;
+    }      
+}
+
+// Then, we can go on setting the values..
+for(var i=0; i<len;i++) {
+    var f = from[i];
+    var t = to[i];
+    var obj = this._find(f[0]);
+    if(f[1]==0) {
+        obj._p = t[2];
+    }
+    if(f[1]==1) {
+        obj.__p = t[2];
+    }   
+    if(f[1]==2) {
+        obj._n = t[2];
+    }      
+    if(f[1]==3) {
+        obj._fc = t[2];
+    }      
+}
+    
 return true;
 ```
 
@@ -1868,11 +2190,12 @@ if(obj) {
 }
 ```
 
-### <a name="commad_trait__cmd_setProperty"></a>commad_trait::_cmd_setProperty(a, isRemote, noWorkers)
+### <a name="commad_trait__cmd_setProperty"></a>commad_trait::_cmd_setProperty(a, isRemote, noWorkers, deltaObj)
 
 
 ```javascript
-var obj = this._find( a[4] ),
+var obj_id = a[4];
+var obj = this._find( obj_id ),
     prop = a[1];
 
 if(!obj || !prop) return false;
@@ -1887,7 +2210,26 @@ if(typeof( oldValue ) != "undefined") {
     if( this.isObject(oldValue) || this.isArray(oldValue) ) return false;
 }
 
+if(!deltaObj) deltaObj = this._delta;
+
+
+if(obj._class) {
+    var c = _classes[obj._class];
+    if(c) {
+        if(c.validateSet) {
+            if(!c.validateSet.apply( obj, [prop, a[2], oldValue] )) return false;
+        }
+    }
+}
+
+// _classes[name]
+
 obj.data[prop] = a[2]; // value is now set...
+
+if(deltaObj) {
+    if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };
+    deltaObj[obj_id].data[prop] = a[2];
+}
 
 if(!noWorkers) this._cmd(a);
 
@@ -1941,6 +2283,23 @@ if(!isRemote) this.writeCommand(a);
 
 return true;
        
+```
+
+### <a name="commad_trait__deltaPatch"></a>commad_trait::_deltaPatch(deltaObj, obj_id, varName, varValue)
+
+
+```javascript
+if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };
+deltaObj[obj_id].data[varName] = varValue;
+
+```
+
+### <a name="commad_trait__deltaPatchMeta"></a>commad_trait::_deltaPatchMeta(deltaObj, obj_id, varName, varValue)
+
+
+```javascript
+if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };
+deltaObj[obj_id][varName] = varValue;
 ```
 
 ### <a name="commad_trait__fireListener"></a>commad_trait::_fireListener(obj, prop)
@@ -2046,9 +2405,17 @@ if(targetObj) {
 
 
 ```javascript
-var newCmd = [22, a[2], a[1],0, a[4]];
+var newCmd = [21, a[2], a[1],0, a[4]];
 return this._cmd_position(newCmd, true, true);
 
+```
+
+### <a name="commad_trait__reverse_position2"></a>commad_trait::_reverse_position2(a)
+
+
+```javascript
+var newCmd = [22, a[2], a[1],0, a[4]];
+return this._cmd_position2(newCmd, true, true);
 ```
 
 ### <a name="commad_trait__reverse_pushToArray"></a>commad_trait::_reverse_pushToArray(a)
@@ -2174,16 +2541,332 @@ if(obj && prop && removedObj) {
 }      
 ```
 
-### <a name="commad_trait_execCmd"></a>commad_trait::execCmd(a, isRemote, isRedo)
+### <a name="commad_trait__setDelta"></a>commad_trait::_setDelta(obj)
+
+
+```javascript
+this._delta = obj;
+```
+
+### <a name="commad_trait_apply"></a>commad_trait::apply(list)
+
+Applies list of commands to the client object
+```javascript
+
+var len = list.length;
+for( var i=0; i<len; i++) {
+    var a = list[i];
+    this.execCmd( a, true );
+}
+
+```
+
+### <a name="commad_trait_collectToDiff"></a>commad_trait::collectToDiff(deltaObj, journal)
+
+This function will collect missing values from the reference diff based on array of commands.
+```javascript
+
+var me = this;
+journal.forEach( function(cmd) {
+    
+    /*
+    if(cmd[0]==1) {
+        var obj_id = cmd[1];
+        if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };    
+        
+        return;
+        //var obj = me._find( cmd[1] );
+        //var prop = cmd[1];
+        //if(obj) me._deltaPatch(deltaObj, cmd[4], prop, obj.data[prop]);
+        //return;
+    }
+    */
+    
+    if(cmd[0]==4) {
+        var obj = me._find( cmd[4] );
+        var prop = cmd[1];
+        if(obj) me._deltaPatch(deltaObj, cmd[4], prop, obj.data[prop]);
+        return;
+    }
+    if(cmd[0]==21) {
+       
+        var obj_id = cmd[4];
+        var obj = me._find( obj_id );
+        if(obj) {
+            if(!deltaObj[obj_id]) deltaObj[obj_id] = { data : {} };        
+            var dd = deltaObj[obj_id];
+            dd._p = obj._p;
+            dd._n = obj._n;
+            dd.__p = obj.__p;        
+            
+            var parent = me._find( obj.__p );
+            if(parent) {
+                if(!deltaObj[parent.__id]) deltaObj[parent.__id] = { data : {} }; 
+                deltaObj[parent.__id]._fc = parent._fc;
+            }
+        }
+        return;        
+    }    
+});
+```
+
+### <a name="commad_trait_conditionalRunner"></a>commad_trait::conditionalRunner(dataObj, sentJournal, unsentJournal, serverJournal)
 
 
 ```javascript
 
+// The client Journal has been run to the dataObj, we want to test conditionally
+// if each server command does work and if not, reverse the client journal
+
+var clientJ = clientJournal.splice(); // create copy of the client journal
+
+/*
+
+1. reverse to orig
+2. apply server cmds
+3. try to apply client cmds
+
+- client may have sent the command already to the server, but does not know if it has gone trough
+- what if the server's command does not go through on the client?
+
+
+x = 380
+-------- start position, last server update -----
+
+x = 10  => to server   ... this change can not be changed anynore
+y = 50  => to server   .... this change can not be changed anymore
+-- then local change ---
+x = 20                 ... not sent, can be saved by fixing before sending
+
+??? should we be having 2 data objects, server data and our local data ???
+
+localData.execCmd( ... );   // something...
+serverData.execCmd( ... );  // something...
+
+=> obj.x = 20
+
+x = 400, 380  <= from server, server thinks the old value is 380 and now it should be 400
+y = 100, 120  <= from server, new y value should be 100
+
+-- we should reverse our local changes maybe then ---
+x = 10
+x = 380
+x = 400
+
+*/
+
+var client_sets_sent,
+    client_sets_unsent,
+    server_sets;
+
+var collectSets = function(journal, obj) {
+    journal.forEach( function(cmd) {
+        if(cmd[0] != 4) return;
+        var obj_id = cmd[4],
+            prop = cmd[1],
+            key = obj_id+":"+prop;
+        if(!obj[key]) obj[key] = { list : []};
+        obj[key].list.push(cmd);
+        obj[key].lastPrev  = cmd[3];
+        obj[key].lastValue = cmd[2];
+    });
+    return obj;
+}
+
+// affected position commands...
+var collectPositions = function(journal, obj) {
+    journal.forEach( function(cmd) {
+        if(cmd[0] != 21) return;
+        
+        var obj_id = cmd[4];
+        if(!obj[obj_id]) obj[obj_id] = { list : [], fc : []};
+       
+        var from = cmd[2];
+        var to = cmd[1];
+        
+        // obj[obj_id].list.push(cmd);
+        
+        for(var i=0; i<=2; i++) {
+            
+            var f = from[i],
+                t = to[i];
+                
+            // if on
+            if((f || t) && (f != t)) {
+                
+                // cmd, 0 = prev, to, from
+                obj[obj_id].list.push([cmd, i, t, f]);
+                
+                // the parent change does not affect the parent, unless first child
+                if(i!=1) {
+                    if(t) {
+                        if(!obj[t]) obj[t] = { list : [], fc : [] };
+                        // OK, a small inconsistency here - the previous value of the set for the "prev"
+                        // is not defined at the transaction, which makes it impossible to reverse this action
+                        // correctly without the state information - you need this information
+                        obj[t].list.push([cmd, i == 2 ? 0 : 2, obj_id, "?" ] );
+                    }
+                    if(f) {
+                        if(!obj[f]) obj[f] = { list : [], fc : []};
+                        obj[f].list.push(cmd);
+                    }                
+                }
+                // if prev will be null and it was coming from somewhere
+                // or it had different parent
+                if(i==0 && (!t) && ( (f && t!=f) || (from[1] != to[1]) ) && to[1]) {
+                    // should be going to as first child
+                    var pid = to[1];
+                    if(!obj[pid]) obj[pid] = { list : [], fc : []};
+                    obj[pid].fc.push(cmd);
+                }
+                // if prev was null before command and moving to different location or parent and
+                // it had a previous parent, then first child changes
+                if(i==0 && (!f) && (( t && t!=f) || (from[1] != to[1])) && from[1]) {
+                    // should be going to as first child
+                    var pid = from[1];
+                    if(!obj[pid]) obj[pid] = { list : [], fc : []};
+                    obj[pid].fc.push(cmd);
+                }                
+            }
+            
+        }
+        // obj[obj_id].list.push(cmd);
+    });
+    return obj;
+}
+
+var new_unsent_journal = [];
+var active_commands = [];
+var handled_keys = {};
+
+for(var i=0; i<serverJournal.length; i++) {
+    
+    var cmd = serverJournal[i];
+    if(cmd[0] == 4) {
+        var obj_id = cmd[4],
+            prop = cmd[1],
+            key = obj_id+":"+prop;
+        if(!handled_keys[key]) {
+            // check if the client journal has changed this object
+            if(!client_sets_unsent) client_sets_unsent = collectSets( unsentJournal, {} );
+            
+            var cv;
+            if(cv = client_sets_unsent[key]) {
+                 // server is setting a key, which client could still "save"
+                 if(!server_sets) server_sets = collectSets( serverJournal, {} );
+                 
+                 // we can keep the value as it is, because we can create new journal entry at the position
+                 var cJC = [4, prop, cv.lastValue, server_sets[key].lastValue, obj_id];
+                 new_unsent_journal.push(cJC);
+                 handled_keys[key] = true;
+            } else {
+                // We have to use the value server has sent...
+                if(!server_sets) server_sets = collectSets( serverJournal, {} );
+                var obj = dataObj._find(obj_id);
+                var active = [4, prop, server_sets[key].lastValue, obj.data[prop], obj_id ];
+                active_commands.push(active);
+                handled_keys[key] = true;
+                
+            }
+        }
+    }
+    
+    // changing the position can be quite tricky...
+    if(cmd[0] == 21) {
+        
+        // ??? can you define the position changes only based on the ID values of objects??
+        // [a] =>  [a,b] => [a,b,c] => [a,c,b] =>  [a,d,c,b] =>
+        // the position change affects at least 1-4 objects
+        
+        // set_fc
+        // set_n
+        // set_p
+        // set__p
+        
+        
+    }
+    
+}
+
+
+
+// the backup plan
+dataObj.undo( clientJournal.length );
+dataObj.apply( serverJournal );
+dataObj.apply( clientJournal );
+
+
+
+
+```
+
+### <a name="commad_trait_deltaDiffToCmds"></a>commad_trait::deltaDiffToCmds(delta1, delta2)
+`delta1` Difference object 1
+ 
+`delta2` Difference object 2
+ 
+
+Takes two delta -objects and creates a command list to transform state from 1 to 2. It is assumed that delta 1 has all the same values than the delta2, so if there is set of commands, then all the changed object properties are collected to both delta objects even if only one of them does actually modify the value. For example, if delta2 modifies x then delta1 must have the original x value also to make possible to create transition from old x =&gt; new x.
+```javascript
+
+var newCmds = [];
+for( var id in delta2 ) {
+    
+    if(delta2.hasOwnProperty(id)) {
+        
+        var obj2 = delta2[id];
+        var obj1 = delta1[id];
+        
+        // just in-case, create the object if not existing...
+        if(!obj1) {
+            var cmd = [1, id, obj2._class];
+            obj1 = delta1[id] = {
+                data : {},
+                __id : id
+            }
+            newCmds.push( cmd );
+        }
+        
+        // detect position change
+        if(typeof( obj2._p) != "undefined" &&  typeof( obj2._n) != "undefined") {
+            if(!obj1 || (obj2._p != obj1._p || obj2._n != obj1._n || obj2.__p != obj1.__p )) {
+                
+                // the cmd migt be something like this...
+                var cmd = [21, [obj2._p, obj2._n, obj2.__p], [obj1._p, obj1._n, obj1.__p], 0, id];
+                newCmds.push( cmd );
+                
+            }
+        }
+        
+        for(var name in obj2.data) {
+            if(obj2.data.hasOwnProperty(name)) {
+
+                if(obj1.data[name] != obj2.data[name]) {
+                    var cmd = [4, name, obj2.data[name], obj1.data[name], id];
+                    newCmds.push( cmd );                    
+                }
+                
+            }
+        }
+    }
+}
+return newCmds;
+```
+
+### <a name="commad_trait_execCmd"></a>commad_trait::execCmd(a, isRemote, isRedo, deltaObj)
+
+
+```javascript
+
+// now, the question is now, can you have a custom code here based on some
+// classes, which is run when the command is executed, for example if you 
+// set x to some value [0,100] can you check here that the value is really
+// a valid value or not, 
 try {
     if(!this.isArray(a)) return false;
     var c = _cmds[a[0]];
     if(c) {
-        var rv =  c.apply(this, [a, isRemote]);
+        var rv =  c.apply(this, [a, isRemote, false, deltaObj]);
         if(rv && !isRedo) this.writeLocalJournal( a );
         return rv;
     } else {
@@ -2232,7 +2915,7 @@ if(!_cmds) {
     _cmds[10] = this._cmd_unsetProperty;
     _cmds[12] = this._cmd_moveToIndex;
     _cmds[13] = this._cmd_aceCmd;
-    _cmds[21] = this._cmd_position;
+    _cmds[22] = this._cmd_position2;
     
     _reverseCmds[3] = this._reverse_setMeta;
     _reverseCmds[4] = this._reverse_setProperty;
@@ -2242,7 +2925,7 @@ if(!_cmds) {
     _reverseCmds[10] = this._reverse_unsetProperty;
     _reverseCmds[12] = this._reverse_moveToIndex;
     _reverseCmds[13] = this._reverse_aceCmd;
-    _reverseCmds[21] = this._reverse_position;
+    _reverseCmds[22] = this._reverse_position2;
     // _reverse_setPropertyObject
     
 }
@@ -2264,6 +2947,15 @@ while( (n--) > 0 ) {
     line++;
     this._journalPointer++;
 }
+```
+
+### <a name="commad_trait_registerClass"></a>commad_trait::registerClass(name, obj)
+
+
+```javascript
+
+if(!_classes) _classes = {};
+_classes[name] = obj;
 ```
 
 ### <a name="commad_trait_reverseCmd"></a>commad_trait::reverseCmd(a)
