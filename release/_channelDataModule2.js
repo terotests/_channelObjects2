@@ -1583,6 +1583,26 @@
           x = 10
           x = 380
           x = 400
+          ====================================================
+          [ 22,
+          [
+          ["myId",   1, "newParent"],
+          ["myId",   0, "prevId"],
+          ["prevId", 2, "myId"],
+          ["myId",   2, "nextId"],
+          ["nextId", 0, "myId"],        
+          ["parentId, 3, "myId"] 
+          ], 
+          [
+          ["myId", 1],
+          ["myId",   0],
+          ["prevId", 2, "nextId"],    
+          ["myId",   2],
+          ["nextId", 0, "prevId"],    
+          ["parentId, 3, "oldFirstChild"] 
+          ], 
+          0, 
+          id ]  
           */
 
           var client_sets_sent, client_sets_unsent, server_sets;
@@ -1605,8 +1625,9 @@
 
           // affected position commands...
           var collectPositions = function collectPositions(journal, obj) {
-            journal.forEach(function (cmd) {
-              if (cmd[0] != 21) return;
+            journal.forEach(function (cmd, i) {
+
+              if (cmd[0] != 22) return;
 
               var obj_id = cmd[4];
               if (!obj[obj_id]) obj[obj_id] = {
@@ -1616,62 +1637,37 @@
 
               var from = cmd[2];
               var to = cmd[1];
+              var len = from.length;
 
-              // obj[obj_id].list.push(cmd);
-
-              for (var i = 0; i <= 2; i++) {
+              for (var i = 0; i < len; i++) {
 
                 var f = from[i],
-                    t = to[i];
+                    t = to[i],
+                    obj_id = f[0];
 
-                // if on
-                if ((f || t) && f != t) {
+                if (!obj[obj_id]) obj[obj_id] = {
+                  list: []
+                };
+                var dd = obj[obj_id];
+                // command index, command pointer, from value => to value
+                dd.list.push([i, cmd, f, t]);
 
-                  // cmd, 0 = prev, to, from
-                  obj[obj_id].list.push([cmd, i, t, f]);
-
-                  // the parent change does not affect the parent, unless first child
-                  if (i != 1) {
-                    if (t) {
-                      if (!obj[t]) obj[t] = {
-                        list: [],
-                        fc: []
-                      };
-                      // OK, a small inconsistency here - the previous value of the set for the "prev"
-                      // is not defined at the transaction, which makes it impossible to reverse this action
-                      // correctly without the state information - you need this information
-                      obj[t].list.push([cmd, i == 2 ? 0 : 2, obj_id, "?"]);
-                    }
-                    if (f) {
-                      if (!obj[f]) obj[f] = {
-                        list: [],
-                        fc: []
-                      };
-                      obj[f].list.push(cmd);
-                    }
-                  }
-                  // if prev will be null and it was coming from somewhere
-                  // or it had different parent
-                  if (i == 0 && !t && (f && t != f || from[1] != to[1]) && to[1]) {
-                    // should be going to as first child
-                    var pid = to[1];
-                    if (!obj[pid]) obj[pid] = {
-                      list: [],
-                      fc: []
-                    };
-                    obj[pid].fc.push(cmd);
-                  }
-                  // if prev was null before command and moving to different location or parent and
-                  // it had a previous parent, then first child changes
-                  if (i == 0 && !f && (t && t != f || from[1] != to[1]) && from[1]) {
-                    // should be going to as first child
-                    var pid = from[1];
-                    if (!obj[pid]) obj[pid] = {
-                      list: [],
-                      fc: []
-                    };
-                    obj[pid].fc.push(cmd);
-                  }
+                // the last value after all commands have been run
+                if (f[1] == 0) {
+                  if (typeof dd._p == "undefined") dd.eka_p = t[2];
+                  dd._p = t[2];
+                }
+                if (f[1] == 1) {
+                  if (typeof dd.__p == "undefined") dd.eka__p = t[2];
+                  dd.__p = t[2];
+                }
+                if (f[1] == 2) {
+                  if (typeof dd._n == "undefined") dd.eka_n = t[2];
+                  dd._n = t[2];
+                }
+                if (f[1] == 3) {
+                  if (typeof dd._fc == "undefined") dd.eka_fc = t[2];
+                  dd._fc = t[2];
                 }
               }
               // obj[obj_id].list.push(cmd);
@@ -1715,7 +1711,7 @@
             }
 
             // changing the position can be quite tricky...
-            if (cmd[0] == 21) {}
+            if (cmd[0] == 22) {}
           }
 
           // the backup plan
@@ -2531,8 +2527,3 @@
 // ??? can you define the position changes only based on the ID values of objects??
 // [a] =>  [a,b] => [a,b,c] => [a,c,b] =>  [a,d,c,b] =>
 // the position change affects at least 1-4 objects
-
-// set_fc
-// set_n
-// set_p
-// set__p
