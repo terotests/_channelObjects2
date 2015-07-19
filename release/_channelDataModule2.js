@@ -1583,7 +1583,15 @@
           x = 10
           x = 380
           x = 400
-          ====================================================
+          The Question is the what are the commands that will transform this Delta list
+          compatible with the other Delta -list with possibly some new commands then.
+          ==============================================================================
+          [x,60]               [y,90]
+                     [x,120]
+          [x,120,60] => converts the lists compatible
+          1. Delta set
+          2. Server news
+          3. Delta unsent
           [ 22,
           [
           ["myId",   1, "newParent"],

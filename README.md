@@ -14,6 +14,20 @@ The ID values might be formed using object to speed up comparisions? Think about
       },
 ```
 
+# Handling the deltas
+
+When server update arrives, client can have 3  files
+
+1. **&Delta;J1** is a journal of commands that have been sent to the server
+2. **&Delta;S** is a journal of new server commands to be merged locally
+3  **&Delta;J2* is a journal of locally generated command which have not yet been sent to server
+
+For each command 
+
+1. Test if **&Delta;S** conflicts with **&Delta;J1** - if it does not conflict move to step 2. If it does conflict, then modify the **&Delta;S** command so that it corresponds to transform from **&Delta;J1** last value to the **&Delta;S** and prepare to run this command at step 2.
+2. for the prepared **&Delta;S** check that if that command conflicts with the **&Delta;J2* - if it does conflict then ignore the **&Delta;S* because it would be overwritten by **&Delta;J2*. Also, modify the **&Delta;J2** so that it will correspond write from the **&Delta;S** to **&Delta;J2**.  If it does not conflict, execute the  **&Delta;J2*.
+
+
 # Limitations
 
 1. moving objects from one subtree to other is not allowed. The object must be removed first and then inserted to other subtree. This is to make client side view MVC code easier to implement.
@@ -2663,7 +2677,26 @@ x = 10
 x = 380
 x = 400
 
-====================================================
+
+
+The Question is the what are the commands that will transform this Delta list
+compatible with the other Delta -list with possibly some new commands then.
+==============================================================================
+
+[x,60]               [y,90]
+                     [x,120]
+
+[x,120,60] => converts the lists compatible
+
+
+1. Delta set
+2. Server news
+3. Delta unsent
+
+
+
+
+
 
 [ 22,
 
