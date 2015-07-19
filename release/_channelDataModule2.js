@@ -1613,8 +1613,6 @@
           id ]  
           */
 
-          var client_sets_sent, client_sets_unsent, server_sets;
-
           var collectSets = function collectSets(journal, obj) {
             journal.forEach(function (cmd) {
               if (cmd[0] != 4) return;
@@ -1654,28 +1652,18 @@
                     obj_id = f[0];
 
                 if (!obj[obj_id]) obj[obj_id] = {
-                  list: []
+                  has: new Array(4),
+                  sets: new Array(4),
+                  froms: new Array(4),
+                  firsts: new Array(4)
                 };
                 var dd = obj[obj_id];
-                // command index, command pointer, from value => to value
-                dd.list.push([i, cmd, f, t]);
-
-                // the last value after all commands have been run
-                if (f[1] == 0) {
-                  if (typeof dd._p == "undefined") dd.eka_p = t[2];
-                  dd._p = t[2];
-                }
-                if (f[1] == 1) {
-                  if (typeof dd.__p == "undefined") dd.eka__p = t[2];
-                  dd.__p = t[2];
-                }
-                if (f[1] == 2) {
-                  if (typeof dd._n == "undefined") dd.eka_n = t[2];
-                  dd._n = t[2];
-                }
-                if (f[1] == 3) {
-                  if (typeof dd._fc == "undefined") dd.eka_fc = t[2];
-                  dd._fc = t[2];
+                var ind = f[1];
+                dd.sets[ind] = t[2]; // the last value
+                dd.has[ind] = true; // indicates the property has been set
+                if (typeof dd.firsts[ind] == "undefined") {
+                  dd.firsts[ind] = t[2];
+                  dd.froms[ind] = f[2]; // to re-build simplified version
                 }
               }
               // obj[obj_id].list.push(cmd);
@@ -1683,49 +1671,154 @@
             return obj;
           };
 
+          var rebuildBuffer = function rebuildBuffer(changes) {
+
+            var real_from = [],
+                real_to = [];
+
+            for (var id in changes) {
+              if (changes.hasOwnProperty(id)) {
+                var dd = changes[id];
+                for (var p = 0; p <= 3; p++) {
+                  if (dd.has[p]) {
+                    real_from.push([id, p, dd.froms[p]]);
+                    real_to.push([id, p, dd.sets[p]]);
+                  }
+                }
+              }
+            }
+            return [22, real_to, real_from];
+          };
+
           var new_unsent_journal = [];
           var active_commands = [];
           var handled_keys = {};
 
+          var client_sets_sent, client_sets_unsent, server_sets;
+
+          var client_pos_sent = collectPositions(sentJournal, {}),
+              client_pos_unsent = collectPositions(unsentJournal, {}),
+              server_pos = collectPositions(serverJournal, {});
+
+          var real_from = [],
+              real_to = [];
+
+          var bReconstructLocal = false;
+
+          var res = {};
+
           for (var i = 0; i < serverJournal.length; i++) {
 
             var cmd = serverJournal[i];
-            if (cmd[0] == 4) {
-              var obj_id = cmd[4],
-                  prop = cmd[1],
-                  key = obj_id + ":" + prop;
-              if (!handled_keys[key]) {
-                // check if the client journal has changed this object
-                if (!client_sets_unsent) client_sets_unsent = collectSets(unsentJournal, {});
 
-                var cv;
-                if (cv = client_sets_unsent[key]) {
-                  // server is setting a key, which client could still "save"
-                  if (!server_sets) server_sets = collectSets(serverJournal, {});
+            /*
+            if(cmd[0] == 4) {
+            var obj_id = cmd[4],
+            prop = cmd[1],
+            key = obj_id+":"+prop;
+            if(!handled_keys[key]) {
+            // check if the client journal has changed this object
+            if(!client_sets_unsent) client_sets_unsent = collectSets( unsentJournal, {} );
+            
+            var cv;
+            if(cv = client_sets_unsent[key]) {
+                 // server is setting a key, which client could still "save"
+                 if(!server_sets) server_sets = collectSets( serverJournal, {} );
+                 
+                 // we can keep the value as it is, because we can create new journal entry at the position
+                 var cJC = [4, prop, cv.lastValue, server_sets[key].lastValue, obj_id];
+                 new_unsent_journal.push(cJC);
+                 handled_keys[key] = true;
+            } else {
+                // We have to use the value server has sent...
+                if(!server_sets) server_sets = collectSets( serverJournal, {} );
+                var obj = dataObj._find(obj_id);
+                var active = [4, prop, server_sets[key].lastValue, obj.data[prop], obj_id ];
+                active_commands.push(active);
+                handled_keys[key] = true;
+                
+            }
+            }
+            }
+            */
 
-                  // we can keep the value as it is, because we can create new journal entry at the position
-                  var cJC = [4, prop, cv.lastValue, server_sets[key].lastValue, obj_id];
-                  new_unsent_journal.push(cJC);
-                  handled_keys[key] = true;
-                } else {
-                  // We have to use the value server has sent...
-                  if (!server_sets) server_sets = collectSets(serverJournal, {});
-                  var obj = dataObj._find(obj_id);
-                  var active = [4, prop, server_sets[key].lastValue, obj.data[prop], obj_id];
-                  active_commands.push(active);
-                  handled_keys[key] = true;
+            // changing the position can be quite tricky...
+            if (cmd[0] == 22) {
+
+              var obj_id = cmd[4];
+              var from = cmd[2];
+              var to = cmd[1];
+
+              // looping simple value sets, like _p => some value
+              // or __p => some value...
+              for (var i = 0; i < len; i++) {
+
+                var local_from, local_to;
+
+                var f = from[i],
+                    t = to[i],
+                    oid = f[0];
+
+                // check if there is some value we have sent to the server, which can be
+                // mutated to new value locally
+                var sent = client_pos_sent[oid];
+
+                local_from = f.slice(); // this is the set from => to we are about to apply
+                local_to = t.slice();
+
+                // flag to indicate if the server command run is necessary
+                var b_add = true;
+
+                if (sent) {
+                  var ind = t[1]; // index 0...3 = prev, parent, next, firstchild
+
+                  if (sent.has[ind]) {
+                    if (sent.sets[ind] != t[2]) {
+                      // the last set of the sent journal was error
+                      local_from[2] = sent.sets[ind];
+                    } else {
+                      // if the value has been locally already set to the value, then don't re-run the cmd
+                      b_add = false;
+                    }
+                  }
+                }
+
+                // then check if the unsent has this
+                var unsent = client_pos_unsent[oid];
+
+                if (unsent) {
+                  var ind = t[1]; // index 0...3 = prev, parent, next, firstchild
+                  // if we have locally conflicting command, then don't execute the server command
+                  // but restructure the unsent buffer so that it corresponds to the new situation
+                  if (unsent.has[ind]) {
+                    b_add = false; // don't add server command
+                    // but the local journal must be modified...
+                    // ?? how to remove the commands?
+
+                    bReconstructLocal = true;
+                    unsent.froms[ind] = local_to[2]; // the servers value
+                  }
+                }
+                if (b_add) {
+                  real_from.push(local_from);
+                  real_to.push(local_to);
                 }
               }
             }
-
-            // changing the position can be quite tricky...
-            if (cmd[0] == 22) {}
           }
 
+          res.bReconstructLocal = bReconstructLocal;
+          if (bReconstructLocal) {
+            res.unset_pos_rebuild = rebuildBuffer(unsent);
+          }
+          res.pos_changes = [22, real_to, real_from];
+
           // the backup plan
-          dataObj.undo(clientJournal.length);
-          dataObj.apply(serverJournal);
-          dataObj.apply(clientJournal);
+          /*
+          dataObj.undo( clientJournal.length );
+          dataObj.apply( serverJournal );
+          dataObj.apply( clientJournal );
+          */
         };
 
         /**
@@ -2531,7 +2624,3 @@
     define(__amdDefs__);
   }
 }).call(new Function("return this")());
-
-// ??? can you define the position changes only based on the ID values of objects??
-// [a] =>  [a,b] => [a,b,c] => [a,c,b] =>  [a,d,c,b] =>
-// the position change affects at least 1-4 objects
