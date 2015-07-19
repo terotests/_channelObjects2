@@ -25,7 +25,7 @@ When server update arrives, client can have 3  files
 For each command 
 
 1. Test if **&Delta;S** conflicts with **&Delta;J1** - if it does not conflict move to step 2. If it does conflict, then modify the **&Delta;S** command so that it corresponds to transform from **&Delta;J1** last value to the **&Delta;S** and prepare to run this command at step 2.
-2. for the prepared **&Delta;S** check that if that command conflicts with the **&Delta;J2* - if it does conflict then ignore the **&Delta;S* because it would be overwritten by **&Delta;J2*. Also, modify the **&Delta;J2** so that it will correspond write from the **&Delta;S** to **&Delta;J2**.  If it does not conflict, execute the  **&Delta;J2*.
+2. for the prepared **&Delta;S** check that if that command conflicts with the **&Delta;J2** - if it does conflict then ignore the **&Delta;S** because it would be overwritten by **&Delta;J2*. Also, modify the **&Delta;J2** so that it will correspond write from the **&Delta;S** to **&Delta;J2**.  If it does not conflict, execute the  **&Delta;J2**.
 
 
 # Limitations
