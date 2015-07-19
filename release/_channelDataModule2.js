@@ -1633,12 +1633,6 @@
 
               if (cmd[0] != 22) return;
 
-              var obj_id = cmd[4];
-              if (!obj[obj_id]) obj[obj_id] = {
-                list: [],
-                fc: []
-              };
-
               var from = cmd[2];
               var to = cmd[1];
               var len = from.length;
