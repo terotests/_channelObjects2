@@ -20,7 +20,7 @@ When server update arrives, client can have 3  files
 
 1. **&Delta;J1** is a journal of commands that have been sent to the server
 2. **&Delta;S** is a journal of new server commands to be merged locally
-3. **&Delta;J2* is a journal of locally generated command which have not yet been sent to server
+3. **&Delta;J2** is a journal of locally generated command which have not yet been sent to server
 
 For each command 
 
