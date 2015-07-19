@@ -2847,13 +2847,10 @@ for(var i=0; i<serverJournal.length; i++) {
     // changing the position can be quite tricky...
     if(cmd[0] == 22) {
 
-        var obj_id = cmd[4];
         var from = cmd[2];
         var to = cmd[1];        
-        
+        var len = from.length;        
 
-        // looping simple value sets, like _p => some value
-        // or __p => some value... 
         for(var i=0; i<len; i++) {
             
             var local_from, local_to;
