@@ -954,14 +954,12 @@
           ["nextId", 0, "prevId"],    
           ["parentId, 3, "oldFirstChild"] 
           ], 
-          0, 
-          id ]  
+          ]  
           */
 
           var obj_id = a[4];
           var from = a[2],
-              to = a[1],
-              obj = this._find(a[4]);
+              to = a[1];
 
           var len = from.length;
 
@@ -1812,6 +1810,8 @@
             res.unset_pos_rebuild = rebuildBuffer(unsent);
           }
           res.pos_changes = [22, real_to, real_from];
+
+          return res;
 
           // the backup plan
           /*
